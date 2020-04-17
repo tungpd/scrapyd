@@ -53,8 +53,16 @@ class Schedule(WsResource):
         args['settings'] = settings
         jobid = args.pop('jobid', uuid.uuid1().hex)
         args['_job'] = jobid
+        count = 0
+        try:
+            count = int(args.get('count', 0))
+        except:
+            pass
+        if count == 0: count = 1
+        args['count'] = str(count)
+
         self.root.scheduler.schedule(project, spider, priority=priority, **args)
-        return {"node_name": self.root.nodename, "status": "ok", "jobid": jobid}
+        return {"node_name": self.root.nodename, "status": "ok", "jobid": jobid, "priority": priority, "args": args}
 
 class Cancel(WsResource):
 

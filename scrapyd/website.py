@@ -124,7 +124,7 @@ class Jobs(resource.Resource):
 
     header_cols = [
         'Project', 'Spider',
-        'Job', 'PID',
+        'Job', 'PID', 'Count',
         'Start', 'Runtime', 'Finish',
         'Log', 'Items',
         'Cancel',
@@ -187,7 +187,8 @@ class Jobs(resource.Resource):
     def prep_tab_pending(self):
         return '\n'.join(
             self.prep_row(dict(
-                Project=project, Spider=m['name'], Job=m['_job'],
+                Project=project, Spider=m['name'], Job=m['_job'], 
+                Count=int(m.get('count', 1)),
                 Cancel=self.cancel_button(project=project, jobid=m['_job'])
             ))
             for project, queue in self.root.poller.queues.items()
@@ -198,7 +199,7 @@ class Jobs(resource.Resource):
         return '\n'.join(
             self.prep_row(dict(
                 Project=p.project, Spider=p.spider,
-                Job=p.job, PID=p.pid,
+                Job=p.job, PID=p.pid, Count=int(p.msg.get('count', 1)),
                 Start=microsec_trunc(p.start_time),
                 Runtime=microsec_trunc(datetime.now() - p.start_time),
                 Log='<a href="/logs/%s/%s/%s.log">Log</a>' % (p.project, p.spider, p.job),
@@ -211,13 +212,13 @@ class Jobs(resource.Resource):
     def prep_tab_finished(self):
         return '\n'.join(
             self.prep_row(dict(
-                Project=p.project, Spider=p.spider,
-                Job=p.job,
-                Start=microsec_trunc(p.start_time),
-                Runtime=microsec_trunc(p.end_time - p.start_time),
-                Finish=microsec_trunc(p.end_time),
-                Log='<a href="/logs/%s/%s/%s.log">Log</a>' % (p.project, p.spider, p.job),
-                Items='<a href="/items/%s/%s/%s.jl">Items</a>' % (p.project, p.spider, p.job),
+                Project=p['project'], Spider=p['spider'],
+                Job=p['job'], Count=int(p['msg'].get('count', 1)),
+                Start=microsec_trunc(p['start_time']),
+                Runtime=microsec_trunc(p['end_time'] - p['start_time']),
+                Finish=microsec_trunc(p['end_time']),
+                Log='<a href="/logs/%s/%s/%s.log">Log</a>' % (p['project'], p['spider'], p['job']),
+                Items='<a href="/items/%s/%s/%s.jl">Items</a>' % (p['project'], p['spider'], p['job']),
             ))
             for p in self.root.launcher.finished
         )
