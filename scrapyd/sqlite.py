@@ -6,8 +6,82 @@ except ImportError:
     from collections import MutableMapping
 import six
 
+from bson import json_util
 
 from ._deprecate import deprecate_class
+
+json_options = json_util.JSONOptions(tz_aware=False, 
+                                datetime_representation=json_util.DatetimeRepresentation.ISO8601)
+
+
+def encode(obj, json_options=json_options):
+    return sqlite3.Binary(json_util.dumps(obj, json_options=json_options).encode('ascii'))
+
+def decode(obj, json_options=json_options):
+    return json_util.loads(bytes(obj).decode('ascii'), json_options=json_options)
+
+
+class JsonSqliteList(object):
+    """SQLite-backed list"""
+
+    def __init__(self, database=None, table="list"):
+        self.database = database or ':memory:'
+        self.table = table
+        self.conn = sqlite3.connect(self.database, check_same_thread=False)
+        q = "create table if not exists %s (key blob primary key, value blob)" \
+            % table
+        self.conn.execute(q)
+
+    def __getitem__(self, key):
+        if isinstance(key, slice):
+            q = "select value from %s where key>=? and key<?" % self.table
+            start = self.encode(key.start or 0)
+            stop = self.encode(key.stop or 0)
+            values = self.conn.execute(q, (start, stop)).fetchall()
+            if values:
+                return [self.decode(v[0]) for v in values]
+        else:
+            key = self.encode(key)
+            q = "select value from %s where key=?" % self.table
+            value = self.conn.execute(q, (key,)).fetchone()
+            if value:
+                return self.decode(value[0])
+        raise IndexError(key)
+
+    def __len__(self):
+        q = "select count(*) from %s" % self.table
+        return self.conn.execute(q).fetchone()[0]
+
+    def __delitem__(self, key):
+        if isinstance(key, slice):
+            q = "delete from %s where key>=? and key<?" % self.table
+            start = self.encode(key.start or 0)
+            stop = self.encode(key.stop or 0)
+            self.conn.execute(q, (start, stop))
+            self.conn.commit()
+        else:
+            key = self.encode(key)
+            q = "delete from %s where key=?" % self.table
+            self.conn.execute(q, (key,))
+            self.conn.commit()
+
+    def __iter__(self):
+        q = "select value from %s" % self.table
+        return (self.decode(x[0]) for x in self.conn.execute(q))
+
+    def append(self, obj):
+        q = "select count(*) from %s" % self.table
+        key = self.conn.execute(q).fetchone()[0]
+        key, value = self.encode(key), self.encode(obj)
+        q = "insert or replace into %s (key, value) values (?,?)" % self.table
+        self.conn.execute(q, (key, value))
+        self.conn.commit()
+
+    def encode(self, obj):
+        return encode(obj)
+
+    def decode(self, obj):
+        return decode(obj)
 
 
 class JsonSqliteDict(MutableMapping):
@@ -72,10 +146,12 @@ class JsonSqliteDict(MutableMapping):
         return list(self.iteritems())
 
     def encode(self, obj):
-        return sqlite3.Binary(json.dumps(obj).encode('ascii'))
+        return encode(obj)
+        #return sqlite3.Binary(json.dumps(obj).encode('ascii'))
 
     def decode(self, obj):
-        return json.loads(bytes(obj).decode('ascii'))
+        return decode(obj)
+        # return json.loads(bytes(obj).decode('ascii'))
 
 
 class JsonSqlitePriorityQueue(object):

@@ -1,0 +1,5 @@
+Twisted>=8.0
+Scrapy>=1.0
+six
+enum-compat
+pymongo

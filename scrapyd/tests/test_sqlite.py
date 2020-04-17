@@ -3,7 +3,24 @@ from datetime import datetime
 from decimal import Decimal
 
 from scrapy.http import Request
-from scrapyd.sqlite import JsonSqlitePriorityQueue, JsonSqliteDict
+from scrapyd.sqlite import JsonSqlitePriorityQueue, JsonSqliteDict, JsonSqliteList
+from scrapyd.launcher import ScrapyProcessProtocol
+
+
+class JsonSqliteListTest(unittest.TestCase):
+    list_class = JsonSqliteList
+    test_dict = {'hello': 'world', 'int': 1, 'float': 1.5, 'null': None, 
+                 'list': ['a', 'word'], 'dict': {'some': 'dict'}}
+    
+    def test_basic_types(self):
+        test = self.test_dict
+        l = self.list_class()
+        l.append(test)
+        self.assertEqual(len(l), 1)
+        self.assertEqual(test, l[0])
+        self.assertEqual(l[:1], [l[0]])
+        del l[:1] 
+        self.assertFalse(len(l))
 
 
 class JsonSqliteDictTest(unittest.TestCase):
@@ -16,9 +33,16 @@ class JsonSqliteDictTest(unittest.TestCase):
         test = self.test_dict
         d = self.dict_class()
         d.update(test)
-        self.failUnlessEqual(list(d.items()), list(test.items()))
+        self.assertEqual(list(d.items()), list(test.items()))
         d.clear()
-        self.failIf(d.items())
+        self.assertFalse(d.items())
+        d[0] = test
+        self.assertEqual(len(d), 1)
+        self.assertTrue(0 in d)
+        self.assertFalse(1 in d)
+        d.pop(0)
+        self.assertFalse(len(d))
+
 
     def test_in(self):
         d = self.dict_class()
