@@ -8,9 +8,13 @@ from twisted.application.service import IServiceCollection
 from scrapy.utils.misc import load_object
 
 from .interfaces import IPoller, IEggStorage, ISpiderScheduler
+from datetime import datetime
+import time
 
 from six.moves.urllib.parse import urlparse
+import jinja2
 
+jenv = jinja2.Environment(loader=jinja2.FileSystemLoader("scrapyd/web_templates"))
 
 class Root(resource.Resource):
 
@@ -23,12 +27,16 @@ class Root(resource.Resource):
         local_items = itemsdir and (urlparse(itemsdir).scheme.lower() in ['', 'file'])
         self.app = app
         self.nodename = config.get('node_name', socket.gethostname())
+        self.putChild(b"main.js", static.File(b"scrapyd/web_static/main.js", "text/javascript"))
+        self.putChild(b"main.css", static.File(b"scrapyd/web_static/main.css", "text/css"))
+        self.putChild(b"logstats_data", LogStatsData(self))
         self.putChild(b'', Home(self, local_items))
         if logsdir:
             self.putChild(b'logs', static.File(logsdir.encode('ascii', 'ignore'), 'text/plain'))
         if local_items:
             self.putChild(b'items', static.File(itemsdir, 'text/plain'))
         self.putChild(b'jobs', Jobs(self, local_items))
+        self.putChild(b'logstats', LogStats(self))
         services = config.items('services', ())
         for servName, servClsName in services:
           servCls = load_object(servClsName)
@@ -65,38 +73,61 @@ class Home(resource.Resource):
         self.local_items = local_items
 
     def render_GET(self, txrequest):
-        vars = {
-            'projects': ', '.join(self.root.scheduler.list_projects())
+        t_vars = {
+            'projects': ', '.join(self.root.scheduler.list_projects()),
+            'local_items': self.local_items,
         }
-        s = """
-<html>
-<head><title>Scrapyd</title></head>
-<body>
-<h1>Scrapyd</h1>
-<p>Available projects: <b>%(projects)s</b></p>
-<ul>
-<li><a href="/jobs">Jobs</a></li>
-""" % vars
-        if self.local_items:
-            s += '<li><a href="/items/">Items</a></li>'
-        s += """
-<li><a href="/logs/">Logs</a></li>
-<li><a href="http://scrapyd.readthedocs.org/en/latest/">Documentation</a></li>
-</ul>
+        s = jenv.get_template("home.html").render(t_vars)
 
-<h2>How to schedule a spider?</h2>
-
-<p>To schedule a spider you need to use the API (this web UI is only for
-monitoring)</p>
-
-<p>Example using <a href="http://curl.haxx.se/">curl</a>:</p>
-<p><code>curl http://localhost:6800/schedule.json -d project=default -d spider=somespider</code></p>
-
-<p>For more information about the API, see the <a href="http://scrapyd.readthedocs.org/en/latest/">Scrapyd documentation</a></p>
-</body>
-</html>
-""" % vars
         return s.encode('utf-8')
+
+
+class LogStats(resource.Resource):
+
+    def __init__(self, root):
+        resource.Resource.__init__(self)
+        self.root = root
+
+    def render_GET(self, txrequest):
+        t_vars = {}
+        s = jenv.get_template("logstats.html").render(t_vars)
+        return s.encode('utf-8')
+
+class LogStatsData(resource.Resource):
+
+    def __init__(self, root):
+        resource.Resource.__init__(self)
+        self.root = root
+
+    def render_GET(self, txrequest):
+        args = txrequest.args
+        txrequest.responseHeaders.addRawHeader(b"content-type", b"application/json")
+        try:
+            sd = args.get(b'sd')
+            ed = args.get(b'ed')
+            project = args.get(b'p')
+            spider = args.get(b's')
+            sdt = datetime.strptime(sd, "%Y%m%d")
+            if n:
+                n = int(n[0])
+            else:
+                n = 100
+        except:
+            n = 100
+        rand = []
+        import random
+        for i in range(n):
+            rand.append({'x': i, 'y': random.random()})
+
+        rs = [
+            {
+                'values': rand,
+                'key': "random points",
+                'color': "#2222ff"
+            }
+        ]
+        import json
+        return json.dumps(rs).encode('utf8')
 
 
 def microsec_trunc(timelike):
@@ -187,7 +218,7 @@ class Jobs(resource.Resource):
     def prep_tab_pending(self):
         return '\n'.join(
             self.prep_row(dict(
-                Project=project, Spider=m['name'], Job=m['_job'], 
+                Project=project, Spider=m['name'], Job=m['_job'],
                 Count=int(m.get('count', 1)),
                 Cancel=self.cancel_button(project=project, jobid=m['_job'])
             ))

@@ -3,3 +3,4 @@ Scrapy>=1.0
 six
 enum-compat
 pymongo
+Jinja2
