@@ -1,4 +1,5 @@
 Twisted>=8.0
+cryptography==2.9
 Scrapy>=1.0
 six
 enum-compat

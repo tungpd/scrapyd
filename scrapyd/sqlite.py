@@ -10,7 +10,38 @@ from bson import json_util
 
 from ._deprecate import deprecate_class
 
-json_options = json_util.JSONOptions(tz_aware=False, 
+
+class LogStatsSqliteData(object):
+
+    def __init__(self, database, table):
+        self.database = database
+        self.table = table
+        self.conn = sqlite3.connect(self.database, check_same_thread=False)
+        q = "create table if not exists %s (id integer primary key autoincrement, \
+                                            spider text not null, \
+                                            create_time integer not null, \
+                                            log_count integer not null, \
+                                            items integer not null, \
+                                            pages integer not null \
+                                            ); " % table
+        q += "create index if not exists create_time_index on %s (create_time); " % table
+        q += "create index if not exists spider_index on %s (spider); " % table
+        # q += "create unique index create_time_spider_index on %s (create_time, spider) " %table
+
+        self.conn.execute(q)
+        self.insert_log_q = "insert into %s (spider, create_time, log_count, items, pages) \
+                                        values (?, ?, ?, ?, ?); "%table
+
+    def insert_log(self, create_time, spider, log_count, pages, items):
+        self.conn.execute(q, (spider, create_time, log_count, items, pages))
+        self.conn.commit()
+
+    def get_all_stats(self, st, et):
+        pass
+    def get_stats(self, st, et, spider):
+        pass
+
+json_options = json_util.JSONOptions(tz_aware=False,
                                 datetime_representation=json_util.DatetimeRepresentation.ISO8601)
 
 

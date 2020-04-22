@@ -108,6 +108,10 @@ class LogStatsData(resource.Resource):
             project = args.get(b'p')
             spider = args.get(b's')
             sdt = datetime.strptime(sd, "%Y%m%d")
+            edt = datetime.strptime(ed, "%Y%m%d")
+            sd_mil = int(sdt.timestamp()*1000)
+            ed_mil = int(edt.timestamp()*1000)
+
             if n:
                 n = int(n[0])
             else:

@@ -40,16 +40,12 @@ setup_args = {
         'Topic :: Internet :: WWW/HTTP',
     ],
 }
-
+install_reqs = []
+with open('requirements.txt') as f:
+    install_reqs = f.read().splitlines()
 
 if using_setuptools:
-    setup_args['install_requires'] = [
-        'Twisted>=8.0',
-        'Scrapy>=1.0',
-        'six',
-        'enum-compat',
-        'pymongo',
-    ]
+    setup_args['install_requires'] = install_reqs
     setup_args['entry_points'] = {'console_scripts': [
         'scrapyd = scrapyd.scripts.scrapyd_run:main'
     ]}
